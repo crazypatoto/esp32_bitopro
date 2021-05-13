@@ -25,9 +25,10 @@ const char *ntpServer = "time.google.com";
 // const char *password = "0966591107";
 const char *ssid = "IVAM_Darren";
 const char *password = "0966591107";
-const char *ssid2 = "Darren_Wifi";
-const char *password2 = "0966591107";
+const char *ssid2 = "1FC";
+const char *password2 = "0926665921";
 double prev_price = 0;
+int prev_total = 0;
 
 LiquidCrystal_I2C lcd(0x27, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line display
 
@@ -226,34 +227,30 @@ void loop()
             total += getCurrencyPrice(currency) * amount;
           }
         }
-        Serial.println(total);
-                lcd.setCursor(0, 0);
-                //lcd.print("BTC:   ");
-                lcd.print(total);
-        //Serial.println(dataValues);
-        //deserializeJson(JSONBuffer, dataValues);
+        char str[201];
+        format_commas(total, str);
+        Serial.println(str);
+        lcd.setCursor(0, 0);
+        lcd.print("TWD:");
+        lcd.setCursor(16 - strlen(str) , 0);
+        lcd.print(str);
 
-        //        double price = JSONBuffer["lastPrice"];
-        //        Serial.println(price);
-        //        lcd.setCursor(0, 0);
-        //        lcd.print("BTC:   ");
-        //        lcd.print(price, 2);
 
-        //        if (prev_price > price)
-        //        {
-        //          //ledcWriteTone(0, 250);
-        //          //ledcWrite(0,5);
-        //        }
-        //        else if (prev_price < price)
-        //        {
-        //          //ledcWriteTone(0, 1000);
-        //          //ledcWrite(0,5);
-        //        }
-        //        prev_price = price;
-        //        digitalWrite(LED, HIGH);
-        //        delay(100);
-        //        digitalWrite(LED, LOW);
-        //        ledcWrite(0, 0);
+        if (total > prev_total)
+        {
+          ledcWriteTone(0, 1000);
+          ledcWrite(0,5);
+        }
+        else if (total < prev_total)
+        {
+          ledcWriteTone(0, 250);
+          ledcWrite(0,5);
+        }
+        prev_total = total;
+        digitalWrite(LED, HIGH);
+        delay(100);
+        digitalWrite(LED, LOW);
+        ledcWrite(0, 0);
       }
     }
 
@@ -313,4 +310,22 @@ double getCurrencyPrice(String currency) {
   }
   Serial.println(http.getString());
   return -1.0f;
+}
+
+void format_commas(int n, char *out)
+{
+  int c;
+  char buf[20];
+  char *p;
+
+  sprintf(buf, "%d", n);
+  c = 2 - strlen(buf) % 3;
+  for (p = buf; *p != 0; p++) {
+    *out++ = *p;
+    if (c == 1) {
+      *out++ = ',';
+    }
+    c = (c + 1) % 3;
+  }
+  *--out = 0;
 }
