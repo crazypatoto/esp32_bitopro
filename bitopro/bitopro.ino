@@ -143,6 +143,8 @@ void setup()
 
   Serial.println("Configuring NTP Server");
   configTime(0, 0, ntpServer);
+
+  Serial.println(getCurrencyPrice("btc"));
 }
 
 void loop()
@@ -160,78 +162,98 @@ void loop()
 
     HTTPClient http;
     http.setConnectTimeout(10000);
-    String path = serverName + "/tickers/eth_twd";
-    //String path = serverName + "/accounts/balance";
+    //String path = serverName + "/tickers/btc_usdt";
+    String path = serverName + "/accounts/balance";
     http.begin(path); //Specify the URL
 
-    // DynamicJsonDocument bitopro_payload_json(1024);
-    // bitopro_payload_json["identity"] = userName;
-    // bitopro_payload_json["nonce"] = getTimestampMilliSeconds();
-    // unsigned char bitopro_payload[100];
-    // serializeJson(bitopro_payload_json, bitopro_payload);
-    // serializeJson(bitopro_payload_json, Serial);
+    DynamicJsonDocument bitopro_payload_json(1024);
+    bitopro_payload_json["identity"] = userName;
+    bitopro_payload_json["nonce"] = getTimestampMilliSeconds();
+    unsigned char bitopro_payload[100];
+    serializeJson(bitopro_payload_json, bitopro_payload);
+    //serializeJson(bitopro_payload_json, Serial);
 
-    // size_t bitopro_payload_encoded_length;
-    // unsigned char *bitopro_payload_encoded = base64_encode((const unsigned char *)bitopro_payload, strlen((const char *)bitopro_payload), &bitopro_payload_encoded_length);
-    // removeNewLine(bitopro_payload_encoded);
+    size_t bitopro_payload_encoded_length;
+    unsigned char *bitopro_payload_encoded = base64_encode((const unsigned char *)bitopro_payload, strlen((const char *)bitopro_payload), &bitopro_payload_encoded_length);
+    removeNewLine(bitopro_payload_encoded);
 
-    // byte bitopro_signature_bytes[48];
-    // getHMACSHA384(apiSecret, (const char *)bitopro_payload_encoded, bitopro_signature_bytes);
-    // char bitopro_signature[97];
-    // array_to_string(bitopro_signature_bytes, 48, bitopro_signature);
+    byte bitopro_signature_bytes[48];
+    getHMACSHA384(apiSecret, (const char *)bitopro_payload_encoded, bitopro_signature_bytes);
+    char bitopro_signature[97];
+    array_to_string(bitopro_signature_bytes, 48, bitopro_signature);
 
-    // http.addHeader(F("X-BITOPRO-APIKEY"), apiKey, true, false);
-    // http.addHeader(F("X-BITOPRO-PAYLOAD"), (char *)bitopro_payload_encoded, false, false);
-    // http.addHeader(F("X-BITOPRO-SIGNATURE"), bitopro_signature, false, false);
+    http.addHeader(F("X-BITOPRO-APIKEY"), apiKey, true, false);
+    http.addHeader(F("X-BITOPRO-PAYLOAD"), (char *)bitopro_payload_encoded, false, false);
+    http.addHeader(F("X-BITOPRO-SIGNATURE"), bitopro_signature, false, false);
 
-    // Serial.println((char *)bitopro_payload_encoded);
-    // Serial.println(bitopro_signature);
-    //free(bitopro_payload_encoded);
+    //    Serial.println((char *)bitopro_payload_encoded);
+    //    Serial.println(bitopro_signature);
+    free(bitopro_payload_encoded);
 
-    Serial.println("Start http.GET()");
+    //Serial.println("Start http.GET()");
     int httpCode = http.GET(); //Make the request
-    Serial.println("Finsih");
+    //Serial.println("Finsih");
 
-    String payload = http.getString();
-    // Serial.print("HttpCode: ");
-    // Serial.println(httpCode);
-    // Serial.print("Payload: ");
-    // Serial.println(payload);    
+    //    String payload = http.getString();
+    //    Serial.print("HttpCode: ");
+    //    Serial.println(httpCode);
+    //    Serial.print("Payload: ");
+    //    Serial.println(payload);
     if (httpCode == 200)
     { //Check for the returning code
 
-      //String payload = http.getString();
+      String payload = http.getString();
       //Serial.println(httpCode);
       //Serial.println(payload);
 
-      StaticJsonDocument<512> JSONBuffer;
+      StaticJsonDocument<2048> JSONBuffer;
+      StaticJsonDocument<64> filter;
+      filter["data"][0]["amount"] = true;
+      filter["data"][0]["currency"] = true;
 
-      if (deserializeJson(JSONBuffer, payload) == DeserializationError::Ok)
+      if (deserializeJson(JSONBuffer, payload, DeserializationOption::Filter(filter)) == DeserializationError::Ok)
       {
         Serial.println("parsed success");
-        String dataValue = JSONBuffer["data"];
-        deserializeJson(JSONBuffer, dataValue);
-        double price = JSONBuffer["lastPrice"];
-        Serial.println(price);
-        lcd.setCursor(0, 0);
-        lcd.print("ETH:   ");
-        lcd.print(price, 2);
+        JsonArray array = JSONBuffer["data"].as<JsonArray>();
+        int total = 0;
+        for (JsonVariant v : array) {
+          double amount = v["amount"];
+          if (amount > 0) {
+            String currency = v["currency"];
+            Serial.print(currency);
+            Serial.print(": ");
+            Serial.println(amount, 5);
+            total += getCurrencyPrice(currency) * amount;
+          }
+        }
+        Serial.println(total);
+                lcd.setCursor(0, 0);
+                //lcd.print("BTC:   ");
+                lcd.print(total);
+        //Serial.println(dataValues);
+        //deserializeJson(JSONBuffer, dataValues);
 
-        if (prev_price > price)
-        {
-          //ledcWriteTone(0, 250);
-          //ledcWrite(0,5);
-        }
-        else if (prev_price < price)
-        {
-          //ledcWriteTone(0, 1000);
-          //ledcWrite(0,5);
-        }
-        prev_price = price;
-        digitalWrite(LED, HIGH);
-        delay(100);
-        digitalWrite(LED, LOW);
-        ledcWrite(0, 0);
+        //        double price = JSONBuffer["lastPrice"];
+        //        Serial.println(price);
+        //        lcd.setCursor(0, 0);
+        //        lcd.print("BTC:   ");
+        //        lcd.print(price, 2);
+
+        //        if (prev_price > price)
+        //        {
+        //          //ledcWriteTone(0, 250);
+        //          //ledcWrite(0,5);
+        //        }
+        //        else if (prev_price < price)
+        //        {
+        //          //ledcWriteTone(0, 1000);
+        //          //ledcWrite(0,5);
+        //        }
+        //        prev_price = price;
+        //        digitalWrite(LED, HIGH);
+        //        delay(100);
+        //        digitalWrite(LED, LOW);
+        //        ledcWrite(0, 0);
       }
     }
 
@@ -268,4 +290,27 @@ void loop()
       ++WLcount;
     }
   }
+}
+
+double getCurrencyPrice(String currency) {
+  String path = serverName + "/tickers/" + currency + "_twd";
+  HTTPClient http;
+  http.setConnectTimeout(10000);
+  http.begin(path); //Specify the URL
+  int httpCode = http.GET(); //Make the request
+  if (httpCode == 200)//Check for the returning code
+  {
+    String payload = http.getString();
+    StaticJsonDocument<128> JSONBuffer;
+    StaticJsonDocument<32> filter;
+    filter["data"]["lastPrice"] = true;
+    if (deserializeJson(JSONBuffer, payload, DeserializationOption::Filter(filter)) == DeserializationError::Ok)
+    {
+      Serial.println("parse ok");
+      double price = JSONBuffer["data"]["lastPrice"];
+      return price;
+    }
+  }
+  Serial.println(http.getString());
+  return -1.0f;
 }
